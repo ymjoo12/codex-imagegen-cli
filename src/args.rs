@@ -58,11 +58,23 @@ pub struct Cli {
     #[arg(long = "tool-param", value_name = "KEY=JSON_OR_TEXT")]
     pub tool_params: Vec<String>,
 
+    #[arg(long, value_enum, default_value_t = ToolChoice::Auto)]
+    pub tool_choice: ToolChoice,
+
     #[arg(long, value_name = "PATH")]
     pub codex_home: Option<PathBuf>,
 
+    #[arg(long, value_enum, default_value_t = AuthStoreMode::Codex)]
+    pub auth_store: AuthStoreMode,
+
+    #[arg(long, value_enum, default_value_t = AuthSource::Codex)]
+    pub auth_source: AuthSource,
+
     #[arg(long, value_name = "URL")]
     pub base_url: Option<String>,
+
+    #[arg(long)]
+    pub no_stream: bool,
 
     #[arg(long, default_value_t = 600)]
     pub timeout_secs: u64,
@@ -72,6 +84,37 @@ pub struct Cli {
 
     #[arg(long)]
     pub dry_run: bool,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum AuthSource {
+    /// Match Codex provider precedence: provider auth, then managed auth.
+    Codex,
+    /// Use the selected Codex model provider only.
+    Provider,
+    /// Skip model-provider auth and use env/API-key/ChatGPT credential stores.
+    Managed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum AuthStoreMode {
+    /// Match Codex's cli_auth_credentials_store setting from config.toml.
+    Codex,
+    /// Try the OS keyring first, then fall back to auth.json.
+    Auto,
+    /// Read and write CODEX_HOME/auth.json.
+    File,
+    /// Read and write the OS keyring entry used by Codex.
+    Keyring,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum ToolChoice {
+    /// Match Codex CLI Responses requests.
+    Auto,
+    /// Force the hosted image_generation tool.
+    #[value(name = "image-generation", alias = "image_generation")]
+    ImageGeneration,
 }
 
 #[derive(Clone, Debug, ValueEnum)]

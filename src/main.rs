@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
 
 async fn run(cli: Cli) -> Result<()> {
     let prompt = cli.prompt_text().context("failed to read prompt")?;
-    let request = ImageRequest::from_cli(&cli, prompt)?;
+    let mut request = ImageRequest::from_cli(&cli, prompt)?;
 
     if cli.dry_run {
         print_dry_run(&request)?;
@@ -29,7 +29,10 @@ async fn run(cli: Cli) -> Result<()> {
     }
 
     let codex_home = auth::resolve_codex_home(cli.codex_home.as_deref())?;
-    let mut auth_store = auth::AuthStore::load(&codex_home)?;
+    let installation_id = auth::resolve_installation_id(&codex_home)?;
+    request.set_codex_identity(installation_id);
+
+    let mut auth_store = auth::AuthStore::load(&codex_home, cli.auth_store, cli.auth_source)?;
     let base_url = cli
         .base_url
         .clone()

@@ -1,10 +1,12 @@
 # codex-imagegen-cli
 
 Rust CLI for generating one image through the Codex Responses `image_generation`
-hosted tool, using the same local Codex credential file that the Codex CLI uses.
+hosted tool, using the same local Codex credential stores that the Codex CLI
+uses.
 
-This tool does not copy or store credentials in the repository. It reads
-`$CODEX_HOME/auth.json`, or `~/.codex/auth.json` when `CODEX_HOME` is unset.
+This tool does not copy or store credentials in the repository. It resolves
+`$CODEX_HOME`, or `~/.codex` when `CODEX_HOME` is unset, then reads the
+configured Codex credential store.
 
 ## Install
 
@@ -41,6 +43,24 @@ cargo run -- \
   --action generate
 ```
 
+Codex-compatible request shape is the default. To force the hosted image tool
+instead of leaving `tool_choice` as Codex's `auto` value, pass:
+
+```bash
+cargo run -- \
+  --prompt "Draw a compact news app avatar, no text." \
+  --tool-choice image-generation
+```
+
+Force a credential store while debugging:
+
+```bash
+cargo run -- \
+  --prompt "Draw a compact news app avatar, no text." \
+  --auth-source managed \
+  --auth-store auto
+```
+
 Inspect the request body without using credentials or making a network request:
 
 ```bash
@@ -71,9 +91,37 @@ Default auth path resolution:
 
 Supported credential shapes:
 
-- ChatGPT/Codex auth: `tokens.access_token`, `tokens.refresh_token`, optional
-  `tokens.account_id`
+- Codex `model_provider` config with `experimental_bearer_token` or `env_key`
+  and `base_url`
+- Codex command-backed provider auth at `model_providers.<name>.auth`
+- `CODEX_API_KEY` or `OPENAI_API_KEY` environment variables
+- ChatGPT/Codex auth from the configured store: `tokens.access_token`, optional
+  `tokens.refresh_token`, optional `tokens.account_id`
 - API key auth: top-level `OPENAI_API_KEY`
+
+Provider auth is resolved the same way Codex resolves model-provider auth: a
+provider bearer token takes precedence over the managed ChatGPT/API-key store.
+This supports private OpenAI-compatible gateways configured in
+`$CODEX_HOME/config.toml`. Provider `base_url`, `http_headers`,
+`env_http_headers`, and `query_params` are applied even when the bearer comes
+from the managed ChatGPT/API-key store.
+
+Auth source selection:
+
+- `--auth-source codex` matches Codex provider precedence.
+- `--auth-source provider` uses only the configured model provider bearer auth.
+- `--auth-source managed` skips model-provider auth and uses environment/API-key
+  or ChatGPT credential stores.
+
+Credential store selection:
+
+- `--auth-store codex` reads `cli_auth_credentials_store` from
+  `$CODEX_HOME/config.toml`, matching Codex. When the setting is absent, Codex's
+  default is `file`.
+- `--auth-store auto` reads the Codex OS keyring entry first, then falls back to
+  `auth.json`.
+- `--auth-store keyring` reads the OS keyring entry named `Codex Auth`.
+- `--auth-store file` reads `$CODEX_HOME/auth.json`.
 
 For ChatGPT/Codex auth, the default base URL is:
 
@@ -87,9 +135,10 @@ For API key auth, the default base URL is:
 https://api.openai.com/v1
 ```
 
-When a ChatGPT/Codex request returns `401 Unauthorized`, the CLI performs one
+When managed ChatGPT/Codex auth returns `401 Unauthorized`, the CLI performs one
 OAuth refresh against `https://auth.openai.com/oauth/token`, persists the
-updated tokens to `auth.json`, and retries the image request once.
+updated tokens back to the same Codex credential store mode, and retries the
+image request once.
 
 ## Request Shape
 
@@ -116,12 +165,10 @@ The CLI sends a Responses request shaped like this:
       "output_format": "png"
     }
   ],
-  "tool_choice": {
-    "type": "image_generation"
-  },
+  "tool_choice": "auto",
   "parallel_tool_calls": false,
   "store": false,
-  "stream": false,
+  "stream": true,
   "include": []
 }
 ```
@@ -129,13 +176,25 @@ The CLI sends a Responses request shaped like this:
 The image bytes come from `output[].type == "image_generation_call"` and that
 item's base64 `result` field.
 
+`--tool-choice image-generation` changes only `tool_choice`:
+
+```json
+{"tool_choice":{"type":"image_generation"}}
+```
+
+Codex sends Responses requests as streams. This CLI does the same by default and
+extracts the final `response.completed` or `response.output_item.done` event.
+Pass `--no-stream` to use a non-streaming JSON response.
+
 ## Limits
 
 - The Codex backend is not a public stability contract. A future Codex release
   may change required headers, request fields, endpoint behavior, or auth flow.
+- Codex `agentIdentity` auth requires per-request signing and is not implemented
+  in this standalone CLI.
 - The Responses hosted image tool still requires a mainline `model` field.
-  The tool call is forced with `tool_choice`, but the server may still use the
-  mainline model for orchestration or prompt revision.
+  `tool_choice` defaults to Codex's `auto` value; forced image tool mode remains
+  available through `--tool-choice image-generation`.
 - Live image generation is not part of `cargo test`, because it consumes account
   quota and depends on external service state.
 

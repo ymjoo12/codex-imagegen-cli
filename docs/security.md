@@ -5,10 +5,18 @@ This repository must never contain real Codex credentials.
 ## Credential Handling
 
 - The CLI reads `auth.json` from the user's Codex home at runtime.
+- The CLI can also read the OS keyring entry used by Codex when
+  `--auth-store keyring`, `--auth-store auto`, or Codex config selects that
+  store.
+- The CLI can read provider bearer auth from Codex config, provider `env_key`,
+  or provider command-backed `auth`, matching Codex provider auth precedence.
+- Provider `http_headers`, `env_http_headers`, and `query_params` are read at
+  runtime and are not written to repository files.
 - It does not copy `auth.json` into the project.
-- It does not print access tokens, refresh tokens, API keys, or full auth JSON.
+- It does not print keyring contents, access tokens, refresh tokens, API keys,
+  provider bearer tokens, or full auth JSON.
 - Known token values are redacted from HTTP error bodies before display.
-- Token refresh writes back only to the original Codex auth file.
+- Token refresh writes back only to the selected Codex credential store mode.
 
 ## Git Hygiene
 
@@ -36,5 +44,6 @@ Default network destinations:
 - `https://chatgpt.com/backend-api/codex/responses`
 - `https://auth.openai.com/oauth/token` for ChatGPT/Codex refresh
 - `https://api.openai.com/v1/responses` only when auth uses `OPENAI_API_KEY`
+- The configured Codex provider `base_url` when a model provider sets one
 
 Do not add telemetry, analytics, or third-party destinations.
