@@ -11,6 +11,8 @@ use crate::response;
 use crate::security;
 
 pub const USER_AGENT: &str = concat!("codex-imagegen-cli/", env!("CARGO_PKG_VERSION"));
+const DEFAULT_INSTRUCTIONS: &str =
+    "You are Codex. Generate images by using the provided image_generation tool.";
 
 #[derive(Debug, thiserror::Error)]
 pub enum ApiError {
@@ -24,6 +26,7 @@ pub enum ApiError {
 
 pub struct ImageRequest {
     model: String,
+    instructions: String,
     prompt: String,
     tool: Map<String, Value>,
     tool_choice: ToolChoice,
@@ -63,8 +66,17 @@ impl ImageRequest {
             tool.insert(key, value);
         }
 
+        let instructions = cli
+            .instructions
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(DEFAULT_INSTRUCTIONS)
+            .to_string();
+
         Ok(Self {
             model,
+            instructions,
             prompt,
             tool,
             tool_choice: cli.tool_choice,
@@ -99,6 +111,7 @@ impl ImageRequest {
         };
         let mut body = serde_json::json!({
             "model": self.model,
+            "instructions": self.instructions,
             "input": [
                 {
                     "type": "message",
@@ -220,6 +233,7 @@ mod tests {
             background: Some("opaque".to_string()),
             action: Some("generate".to_string()),
             tool_params: vec!["moderation=\"low\"".to_string()],
+            instructions: None,
             tool_choice: ToolChoice::ImageGeneration,
             profile: None,
             codex_home: None,
@@ -244,6 +258,7 @@ mod tests {
         let body = request.to_body();
 
         assert_eq!(body["model"], "gpt-5.5");
+        assert_eq!(body["instructions"], DEFAULT_INSTRUCTIONS);
         assert_eq!(body["stream"], true);
         assert_eq!(body["tool_choice"]["type"], "image_generation");
         assert_eq!(body["tools"][0]["type"], "image_generation");

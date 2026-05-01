@@ -32,7 +32,7 @@ With image options:
 
 ```bash
 cargo run -- \
-  --prompt "Draw a compact isometric desk setup, no text." \
+  --prompt "Draw a compact isometric desk setup using the image_generation tool, no text." \
   --output ./generated/desk.png \
   --profile openai \
   --model gpt-5.5 \
@@ -44,13 +44,31 @@ cargo run -- \
   --action generate
 ```
 
-Codex-compatible request shape is the default. To force the hosted image tool
-instead of leaving `tool_choice` as Codex's `auto` value, pass:
+Codex-compatible request shape is the default: `tool_choice` remains `auto`.
+For reliable live generation, phrase the prompt so the selected model calls the
+`image_generation` tool:
+
+```bash
+cargo run -- \
+  --profile openai \
+  --prompt "Draw a compact news app avatar using the image_generation tool, no text."
+```
+
+Some gateways also support forcing the hosted image tool instead of leaving
+`tool_choice` as Codex's `auto` value:
 
 ```bash
 cargo run -- \
   --prompt "Draw a compact news app avatar, no text." \
   --tool-choice image-generation
+```
+
+Override the default request instructions:
+
+```bash
+cargo run -- \
+  --prompt "Draw a compact news app avatar using the image_generation tool, no text." \
+  --instructions "You are Codex. Use the image_generation tool for image requests."
 ```
 
 Force a credential store while debugging:
@@ -166,6 +184,7 @@ The CLI sends a Responses request shaped like this:
 ```json
 {
   "model": "gpt-5.5",
+  "instructions": "You are Codex. Generate images by using the provided image_generation tool.",
   "input": [
     {
       "type": "message",
@@ -203,7 +222,10 @@ item's base64 `result` field.
 
 Codex sends Responses requests as streams. This CLI does the same by default and
 extracts the final `response.completed` or `response.output_item.done` event.
-Pass `--no-stream` to use a non-streaming JSON response.
+When `response.completed` carries an empty output array but an earlier
+`response.output_item.done` contains the image item, the CLI preserves the image
+item and writes it to disk. Pass `--no-stream` only for providers that support
+non-streaming Responses calls.
 
 ## Limits
 
@@ -213,7 +235,8 @@ Pass `--no-stream` to use a non-streaming JSON response.
   in this standalone CLI.
 - The Responses hosted image tool still requires a mainline `model` field.
   `tool_choice` defaults to Codex's `auto` value; forced image tool mode remains
-  available through `--tool-choice image-generation`.
+  available through `--tool-choice image-generation` for providers that support
+  forced hosted-tool choice.
 - Live image generation is not part of `cargo test`, because it consumes account
   quota and depends on external service state.
 

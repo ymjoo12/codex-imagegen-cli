@@ -56,6 +56,8 @@ pub fn extract_first_image(response: &Value) -> Result<ImageCall> {
 pub fn parse_sse_response(raw: &str) -> Result<Value> {
     let mut image_items = Vec::new();
     let mut event_types = Vec::new();
+    let mut completed_response = None;
+    let mut errors = Vec::new();
     let normalized = raw.replace("\r\n", "\n");
 
     for payload in sse_data_payloads(&normalized) {
@@ -70,10 +72,21 @@ pub fn parse_sse_response(raw: &str) -> Result<Value> {
             event_types.push(event_type.to_string());
         }
 
+        if event.get("type").and_then(Value::as_str) == Some("error") {
+            errors.push(describe_error_event(&event));
+        }
+
         if event.get("type").and_then(Value::as_str) == Some("response.completed")
             && let Some(response) = event.get("response")
         {
-            return Ok(response.clone());
+            completed_response = Some(response.clone());
+            continue;
+        }
+
+        if event.get("type").and_then(Value::as_str) == Some("response.failed")
+            && let Some(response) = event.get("response")
+        {
+            errors.push(describe_error_event(response));
         }
 
         if event.get("type").and_then(Value::as_str) == Some("response.output_item.done")
@@ -84,14 +97,43 @@ pub fn parse_sse_response(raw: &str) -> Result<Value> {
         }
     }
 
+    if let Some(mut response) = completed_response {
+        if extract_first_image(&response).is_ok() || image_items.is_empty() {
+            return Ok(response);
+        }
+        if let Some(object) = response.as_object_mut() {
+            object.insert("output".to_string(), Value::Array(image_items));
+            return Ok(response);
+        }
+    }
+
     if !image_items.is_empty() {
         return Ok(serde_json::json!({ "output": image_items }));
+    }
+
+    if !errors.is_empty() {
+        return Err(anyhow!(
+            "stream reported an error before image generation completed: {}; event types: {}",
+            errors.join("; "),
+            event_types.join(", ")
+        ));
     }
 
     Err(anyhow!(
         "stream did not include response.completed or image_generation_call output item; event types: {}",
         event_types.join(", ")
     ))
+}
+
+fn describe_error_event(event: &Value) -> String {
+    let error = event.get("error").unwrap_or(event);
+    if let Some(message) = error.get("message").and_then(Value::as_str) {
+        return message.to_string();
+    }
+    if let Some(code) = error.get("code").and_then(Value::as_str) {
+        return code.to_string();
+    }
+    error.to_string()
 }
 
 fn sse_data_payloads(raw: &str) -> Vec<String> {
@@ -162,6 +204,24 @@ mod tests {
         let response = parse_sse_response(raw).expect("parse sse");
         let image = extract_first_image(&response).expect("extract image");
 
+        assert_eq!(image.id.as_deref(), Some("ig_1"));
+        assert_eq!(image.result, "aGVsbG8=");
+    }
+
+    #[test]
+    fn preserves_image_item_when_completed_response_output_is_empty() {
+        let raw = concat!(
+            "event: response.output_item.done\n",
+            "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"image_generation_call\",\"id\":\"ig_1\",\"result\":\"aGVsbG8=\"}}\n\n",
+            "event: response.completed\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_1\",\"output\":[]}}\n\n",
+            "data: [DONE]\n\n"
+        );
+
+        let response = parse_sse_response(raw).expect("parse sse");
+        let image = extract_first_image(&response).expect("extract image");
+
+        assert_eq!(response_id(&response).as_deref(), Some("resp_1"));
         assert_eq!(image.id.as_deref(), Some("ig_1"));
         assert_eq!(image.result, "aGVsbG8=");
     }

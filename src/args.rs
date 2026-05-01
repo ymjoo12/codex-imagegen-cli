@@ -61,6 +61,9 @@ pub struct Cli {
     #[arg(long = "tool-param", value_name = "KEY=JSON_OR_TEXT")]
     pub tool_params: Vec<String>,
 
+    #[arg(long, value_name = "TEXT")]
+    pub instructions: Option<String>,
+
     #[arg(long, value_enum, default_value_t = ToolChoice::Auto)]
     pub tool_choice: ToolChoice,
 

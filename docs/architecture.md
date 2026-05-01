@@ -21,7 +21,8 @@ hosted-tool path without depending on Codex's internal Rust workspace.
 2. Resolve `$CODEX_HOME/config.toml` profile settings. CLI `--model` overrides
    the selected profile model, matching Codex's `-m` behavior.
 3. Build a Responses request with the `image_generation` hosted tool and
-   Codex-compatible `tool_choice: "auto"` by default.
+   Codex-compatible `tool_choice: "auto"` by default. The request always
+   includes non-empty `instructions`, matching the Codex backend requirement.
 4. Resolve Codex auth from `--codex-home`, `$CODEX_HOME`, or `~/.codex`.
 5. Read Codex model-provider routing and bearer auth first, then the same
    credential store mode Codex uses. `--auth-source managed` skips
@@ -87,5 +88,7 @@ The tool result is returned as base64 in:
 {"type":"image_generation_call","result":"..."}
 ```
 
-Codex streams Responses requests. This CLI sends `stream: true` by default and
-parses `response.completed` or `response.output_item.done` SSE events.
+Codex streams Responses requests. This CLI sends `stream: true` by default,
+parses `response.completed` and `response.output_item.done` SSE events, and
+preserves image items that arrive before a completed response with an empty
+`output` array.

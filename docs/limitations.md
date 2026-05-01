@@ -7,7 +7,8 @@ behavior requires a mainline `model` field such as `gpt-5.5`, even when the
 image tool call is forced. Codex-compatible mode leaves `tool_choice` as
 `auto`, so the backend may decide whether to call the hosted tool. Forced mode
 is available with `--tool-choice image-generation`, but it still cannot prove
-that the backend performs no model-side orchestration.
+that the backend performs no model-side orchestration and may not be supported
+by every profile.
 
 ## Codex Backend Stability
 
@@ -46,7 +47,7 @@ Manual live test:
 
 ```bash
 cargo run -- \
-  --prompt "Draw a tiny orange robot watering a cactus, no text." \
+  --prompt "Draw a tiny orange robot watering a cactus using the image_generation tool, no text." \
   --output ./generated/live-test.png \
   --json
 ```
