@@ -1,0 +1,8 @@
+/target/
+/generated/
+/.env
+/.env.*
+/.codex/
+/auth.json
+/*.log
+/.DS_Store
