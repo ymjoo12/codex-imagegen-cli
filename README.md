@@ -8,7 +8,71 @@ This tool does not copy or store credentials in the repository. It resolves
 `$CODEX_HOME`, or `~/.codex` when `CODEX_HOME` is unset, then reads the
 configured Codex credential store.
 
-## Install
+## Install From Releases
+
+Download a prebuilt binary from the latest GitHub release. Cargo is not
+required for this path.
+
+| Platform | Asset |
+| --- | --- |
+| macOS Apple Silicon | `codex-imagegen-aarch64-apple-darwin.tar.gz` |
+| macOS Intel | `codex-imagegen-x86_64-apple-darwin.tar.gz` |
+| Linux x86_64 | `codex-imagegen-x86_64-unknown-linux-gnu.tar.gz` |
+| Windows x86_64 | `codex-imagegen-x86_64-pc-windows-msvc.zip` |
+
+macOS Apple Silicon:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+curl -L \
+  https://github.com/ymjoo12/codex-imagegen-cli/releases/latest/download/codex-imagegen-aarch64-apple-darwin.tar.gz |
+  tar -xz -C "$HOME/.local/bin" codex-imagegen
+codex-imagegen --help
+```
+
+macOS Intel:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+curl -L \
+  https://github.com/ymjoo12/codex-imagegen-cli/releases/latest/download/codex-imagegen-x86_64-apple-darwin.tar.gz |
+  tar -xz -C "$HOME/.local/bin" codex-imagegen
+codex-imagegen --help
+```
+
+Linux x86_64:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+curl -L \
+  https://github.com/ymjoo12/codex-imagegen-cli/releases/latest/download/codex-imagegen-x86_64-unknown-linux-gnu.tar.gz |
+  tar -xz -C "$HOME/.local/bin" codex-imagegen
+codex-imagegen --help
+```
+
+Windows x86_64 PowerShell:
+
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\bin"
+Invoke-WebRequest `
+  -Uri "https://github.com/ymjoo12/codex-imagegen-cli/releases/latest/download/codex-imagegen-x86_64-pc-windows-msvc.zip" `
+  -OutFile "$env:TEMP\codex-imagegen.zip"
+Expand-Archive -Force "$env:TEMP\codex-imagegen.zip" "$env:USERPROFILE\bin"
+& "$env:USERPROFILE\bin\codex-imagegen.exe" --help
+```
+
+Each release also includes a `.sha256` file next to each archive. Verify a
+download on macOS or Linux with:
+
+```bash
+shasum -a 256 -c codex-imagegen-aarch64-apple-darwin.tar.gz.sha256
+```
+
+Make sure `$HOME/.local/bin` or the chosen install directory is in `PATH`.
+
+## Build From Source
+
+Use this path when you already have Rust and Cargo installed.
 
 ```bash
 cargo build --release
@@ -23,7 +87,7 @@ The binary is available at:
 ## Usage
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --prompt "Draw a cat in a spacesuit standing on the moon. No text." \
   --output ./generated/moon-cat.png
 ```
@@ -31,7 +95,7 @@ cargo run -- \
 With image options:
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --prompt "Draw a compact isometric desk setup using the image_generation tool, no text." \
   --output ./generated/desk.png \
   --profile openai \
@@ -49,7 +113,7 @@ For reliable live generation, phrase the prompt so the selected model calls the
 `image_generation` tool:
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --profile openai \
   --prompt "Draw a compact news app avatar using the image_generation tool, no text."
 ```
@@ -58,7 +122,7 @@ Some gateways also support forcing the hosted image tool instead of leaving
 `tool_choice` as Codex's `auto` value:
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --prompt "Draw a compact news app avatar, no text." \
   --tool-choice image-generation
 ```
@@ -66,7 +130,7 @@ cargo run -- \
 Override the default request instructions:
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --prompt "Draw a compact news app avatar using the image_generation tool, no text." \
   --instructions "You are Codex. Use the image_generation tool for image requests."
 ```
@@ -74,7 +138,7 @@ cargo run -- \
 Force a credential store while debugging:
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --prompt "Draw a compact news app avatar, no text." \
   --profile openai \
   --auth-source managed \
@@ -84,19 +148,19 @@ cargo run -- \
 Inspect the request body without using credentials or making a network request:
 
 ```bash
-cargo run -- --prompt "Draw a test image" --dry-run
+codex-imagegen --prompt "Draw a test image" --dry-run
 ```
 
 Print machine-readable output:
 
 ```bash
-cargo run -- --prompt "Draw a small robot" --json
+codex-imagegen --prompt "Draw a small robot" --json
 ```
 
 Pass a future or experimental image tool parameter:
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --prompt "Draw a small robot" \
   --tool-param 'moderation="low"'
 ```

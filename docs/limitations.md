@@ -46,7 +46,7 @@ construction, auth parsing, response extraction, and base64 file writing.
 Manual live test:
 
 ```bash
-cargo run -- \
+codex-imagegen \
   --prompt "Draw a tiny orange robot watering a cactus using the image_generation tool, no text." \
   --output ./generated/live-test.png \
   --json
