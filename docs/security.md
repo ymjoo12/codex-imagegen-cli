@@ -39,6 +39,16 @@ git grep -n "access_token\\|refresh_token\\|OPENAI_API_KEY\\|sk-" -- .
 
 Only dummy tokens may appear in tests or documentation.
 
+Before making the repository public, also search for local-only identifiers such
+as private profile names, usernames, hostnames, and gateway names:
+
+```bash
+PRIVATE_TERMS='private-profile|local-user|internal-host' git grep -n -E "$PRIVATE_TERMS" -- .
+```
+
+Use neutral fixture names such as `custom_gateway`, `corp`, or `example` in
+tests and documentation.
+
 ## Network Scope
 
 Default network destinations:
