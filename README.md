@@ -34,6 +34,7 @@ With image options:
 cargo run -- \
   --prompt "Draw a compact isometric desk setup, no text." \
   --output ./generated/desk.png \
+  --profile openai \
   --model gpt-5.5 \
   --image-model gpt-image-2 \
   --format png \
@@ -57,6 +58,7 @@ Force a credential store while debugging:
 ```bash
 cargo run -- \
   --prompt "Draw a compact news app avatar, no text." \
+  --profile openai \
   --auth-source managed \
   --auth-store auto
 ```
@@ -82,6 +84,18 @@ cargo run -- \
 ```
 
 ## Authentication
+
+Codex profile selection matches the Codex CLI:
+
+- `--profile <name>` or `-p <name>` selects `[profiles.<name>]` from
+  `$CODEX_HOME/config.toml`.
+- `--model <name>` or `-m <name>` overrides the selected profile's `model`.
+- When `--profile` is omitted, the top-level `profile` value from
+  `config.toml` is used when present.
+- Effective model resolution is `--model`, then selected profile `model`, then
+  top-level `model`, then `gpt-5.5`.
+- Effective provider resolution is selected profile `model_provider`, then
+  top-level `model_provider`, then `openai`.
 
 Default auth path resolution:
 
@@ -136,9 +150,14 @@ https://api.openai.com/v1
 ```
 
 When managed ChatGPT/Codex auth returns `401 Unauthorized`, the CLI performs one
-OAuth refresh against `https://auth.openai.com/oauth/token`, persists the
-updated tokens back to the same Codex credential store mode, and retries the
-image request once.
+guarded reload from the same credential store before refreshing. If another
+Codex process already updated the file or keyring entry, the CLI uses the
+updated credentials and retries without consuming the old refresh token. If the
+stored auth is unchanged, it performs one OAuth refresh against
+`https://auth.openai.com/oauth/token`, persists the updated tokens back to the
+same Codex credential store mode, and retries the image request once. The same
+guarded refresh is attempted before the first request when the stored ChatGPT
+access token is already stale.
 
 ## Request Shape
 

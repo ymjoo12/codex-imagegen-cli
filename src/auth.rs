@@ -30,6 +30,8 @@ const DEFAULT_CODEX_BASE_URL: &str = "https://chatgpt.com/backend-api/codex";
 const DEFAULT_OPENAI_BASE_URL: &str = "https://api.openai.com/v1";
 const REFRESH_TOKEN_URL: &str = "https://auth.openai.com/oauth/token";
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
+const DEFAULT_MODEL: &str = "gpt-5.5";
+const TOKEN_REFRESH_INTERVAL_DAYS: i64 = 8;
 const KEYRING_SERVICE: &str = "Codex Auth";
 const CONFIG_FILE: &str = "config.toml";
 const AUTH_FILE: &str = "auth.json";
@@ -56,6 +58,7 @@ pub enum AuthMaterial {
 
 pub struct AuthStore {
     codex_home: PathBuf,
+    auth_store_mode: Option<PersistentAuthStoreMode>,
     save_target: AuthSaveTarget,
     default_base_url: String,
     provider_headers: Vec<(String, String)>,
@@ -95,10 +98,36 @@ struct ProviderRequestConfig {
 
 #[derive(Debug, Deserialize, Default)]
 struct CodexConfig {
+    profile: Option<String>,
+    model: Option<String>,
     model_provider: Option<String>,
+    chatgpt_base_url: Option<String>,
     cli_auth_credentials_store: Option<String>,
     #[serde(default)]
+    profiles: HashMap<String, CodexProfile>,
+    #[serde(default)]
     model_providers: HashMap<String, ProviderConfig>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct CodexProfile {
+    model: Option<String>,
+    model_provider: Option<String>,
+    chatgpt_base_url: Option<String>,
+}
+
+#[derive(Debug, Default)]
+struct EffectiveCodexConfig {
+    model: Option<String>,
+    model_provider: Option<String>,
+    chatgpt_base_url: Option<String>,
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum ReloadOutcome {
+    Changed,
+    Unchanged,
+    Skipped,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -129,9 +158,11 @@ impl AuthStore {
         codex_home: &Path,
         requested_mode: AuthStoreMode,
         auth_source: AuthSource,
+        profile: Option<&str>,
     ) -> Result<Self> {
+        let effective_config = read_effective_codex_config(codex_home, profile)?;
         let provider_config = if matches!(auth_source, AuthSource::Codex | AuthSource::Provider) {
-            read_provider_request_config(codex_home)?
+            read_provider_request_config(codex_home, &effective_config)?
         } else {
             None
         };
@@ -155,6 +186,7 @@ impl AuthStore {
             let material = parse_auth_material(&value)?;
             let mut store = Self {
                 codex_home: codex_home.to_path_buf(),
+                auth_store_mode: None,
                 save_target: AuthSaveTarget::None,
                 default_base_url: DEFAULT_OPENAI_BASE_URL.to_string(),
                 provider_headers: Vec::new(),
@@ -177,12 +209,17 @@ impl AuthStore {
         let material = parse_auth_material(&value)?;
         let mut store = Self {
             codex_home: codex_home.to_path_buf(),
+            auth_store_mode: Some(mode),
             save_target: match mode {
                 PersistentAuthStoreMode::Auto => AuthSaveTarget::Auto,
                 PersistentAuthStoreMode::File => AuthSaveTarget::File,
                 PersistentAuthStoreMode::Keyring => AuthSaveTarget::Keyring,
             },
-            default_base_url: default_base_url_for_material(&material).to_string(),
+            default_base_url: default_base_url_for_material(
+                &material,
+                effective_config.chatgpt_base_url.as_deref(),
+            )
+            .to_string(),
             provider_headers: Vec::new(),
             query_params: Vec::new(),
             value,
@@ -204,6 +241,7 @@ impl AuthStore {
             .ok_or_else(|| anyhow!("provider bearer token is missing"))?;
         Ok(Self {
             codex_home: codex_home.to_path_buf(),
+            auth_store_mode: None,
             save_target: AuthSaveTarget::None,
             default_base_url: base_url,
             provider_headers: provider.headers.clone(),
@@ -238,6 +276,25 @@ impl AuthStore {
                 ..
             } if !refresh_token.trim().is_empty()
         )
+    }
+
+    pub fn is_stale_chatgpt_auth(&self) -> bool {
+        let AuthMaterial::ChatGpt { access_token, .. } = &self.material else {
+            return false;
+        };
+
+        if access_token_is_expired(access_token).unwrap_or(false) {
+            return true;
+        }
+
+        let Some(last_refresh) = self.value.get("last_refresh").and_then(Value::as_str) else {
+            return false;
+        };
+        let Ok(last_refresh) = chrono::DateTime::parse_from_rfc3339(last_refresh) else {
+            return false;
+        };
+        last_refresh.with_timezone(&Utc)
+            < Utc::now() - chrono::Duration::days(TOKEN_REFRESH_INTERVAL_DAYS)
     }
 
     pub fn add_headers(&self, request: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
@@ -300,6 +357,48 @@ impl AuthStore {
     }
 
     pub async fn refresh_chatgpt_token(&mut self, client: &reqwest::Client) -> Result<()> {
+        match self.reload_changed_auth()? {
+            ReloadOutcome::Changed => return Ok(()),
+            ReloadOutcome::Unchanged | ReloadOutcome::Skipped => {}
+        }
+        self.refresh_chatgpt_token_from_authority(client).await
+    }
+
+    fn reload_changed_auth(&mut self) -> Result<ReloadOutcome> {
+        let Some(mode) = self.auth_store_mode else {
+            return Ok(ReloadOutcome::Skipped);
+        };
+        let expected_account_id = match self.account_id() {
+            Some(account_id) => account_id,
+            None => return Ok(ReloadOutcome::Skipped),
+        };
+        let value = load_auth_value(&self.codex_home, mode)?;
+        let material = parse_auth_material(&value)?;
+        let loaded_account_id = account_id_for_material(&material);
+        if loaded_account_id.as_deref() != Some(expected_account_id.as_str()) {
+            let found = loaded_account_id.unwrap_or_else(|| "unknown".to_string());
+            return Err(anyhow!(
+                "stored Codex auth account changed while refreshing tokens; expected account {expected_account_id}, found account {found}"
+            ));
+        }
+
+        if value == self.value {
+            return Ok(ReloadOutcome::Unchanged);
+        }
+
+        self.value = value;
+        self.material = material;
+        Ok(ReloadOutcome::Changed)
+    }
+
+    fn account_id(&self) -> Option<String> {
+        account_id_for_material(&self.material)
+    }
+
+    async fn refresh_chatgpt_token_from_authority(
+        &mut self,
+        client: &reqwest::Client,
+    ) -> Result<()> {
         let refresh_token = match &self.material {
             AuthMaterial::ChatGpt {
                 refresh_token: Some(refresh_token),
@@ -376,9 +475,12 @@ impl AuthStore {
     }
 }
 
-fn default_base_url_for_material(material: &AuthMaterial) -> &'static str {
+fn default_base_url_for_material<'a>(
+    material: &AuthMaterial,
+    chatgpt_base_url: Option<&'a str>,
+) -> &'a str {
     match material {
-        AuthMaterial::ChatGpt { .. } => DEFAULT_CODEX_BASE_URL,
+        AuthMaterial::ChatGpt { .. } => chatgpt_base_url.unwrap_or(DEFAULT_CODEX_BASE_URL),
         AuthMaterial::ApiKey { .. } | AuthMaterial::ProviderBearer { .. } => {
             DEFAULT_OPENAI_BASE_URL
         }
@@ -412,6 +514,22 @@ pub fn resolve_installation_id(codex_home: &Path) -> Result<String> {
     fs::write(&path, &installation_id)
         .with_context(|| format!("failed to write installation id: {}", path.display()))?;
     Ok(installation_id)
+}
+
+pub fn resolve_effective_model(
+    codex_home: &Path,
+    profile: Option<&str>,
+    cli_model: Option<&str>,
+) -> Result<String> {
+    if let Some(model) = cli_model.map(str::trim).filter(|value| !value.is_empty()) {
+        return Ok(model.to_string());
+    }
+
+    let effective = read_effective_codex_config(codex_home, profile)?;
+    Ok(effective
+        .model
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or_else(|| DEFAULT_MODEL.to_string()))
 }
 
 fn parse_auth_material(value: &Value) -> Result<AuthMaterial> {
@@ -467,6 +585,25 @@ fn auth_mode(value: &Value) -> Option<&str> {
     value.get("auth_mode").and_then(Value::as_str)
 }
 
+fn account_id_for_material(material: &AuthMaterial) -> Option<String> {
+    match material {
+        AuthMaterial::ChatGpt { account_id, .. } => account_id.clone(),
+        AuthMaterial::ApiKey { .. } | AuthMaterial::ProviderBearer { .. } => None,
+    }
+}
+
+fn access_token_is_expired(token: &str) -> Option<bool> {
+    let mut parts = token.split('.');
+    let (_header, payload, _signature) = (parts.next()?, parts.next()?, parts.next()?);
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload)
+        .ok()?;
+    let claims = serde_json::from_slice::<Value>(&decoded).ok()?;
+    let expires_at = claims.get("exp")?.as_i64()?;
+    let expires_at = chrono::DateTime::<Utc>::from_timestamp(expires_at, 0)?;
+    Some(expires_at <= Utc::now())
+}
+
 fn required_string(value: Option<&Value>, field: &str) -> Result<String> {
     let value = value
         .and_then(Value::as_str)
@@ -488,13 +625,17 @@ fn read_api_key_from_env() -> Option<String> {
         })
 }
 
-fn read_provider_request_config(codex_home: &Path) -> Result<Option<ProviderRequestConfig>> {
+fn read_provider_request_config(
+    codex_home: &Path,
+    effective: &EffectiveCodexConfig,
+) -> Result<Option<ProviderRequestConfig>> {
     let Some(config) = read_codex_config(codex_home)? else {
         return Ok(None);
     };
-    let Some(provider_name) = config.model_provider else {
-        return Ok(None);
-    };
+    let provider_name = effective
+        .model_provider
+        .clone()
+        .unwrap_or_else(|| "openai".to_string());
     let Some(provider) = config.model_providers.get(&provider_name) else {
         return Ok(None);
     };
@@ -531,6 +672,41 @@ fn read_provider_request_config(codex_home: &Path) -> Result<Option<ProviderRequ
             .map(|(name, value)| (name.clone(), value.clone()))
             .collect(),
     }))
+}
+
+fn read_effective_codex_config(
+    codex_home: &Path,
+    requested_profile: Option<&str>,
+) -> Result<EffectiveCodexConfig> {
+    let Some(config) = read_codex_config(codex_home)? else {
+        return Ok(EffectiveCodexConfig::default());
+    };
+    let active_profile_name = requested_profile
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .or(config.profile.clone());
+    let active_profile = match active_profile_name.as_deref() {
+        Some(name) => Some(config.profiles.get(name).ok_or_else(|| {
+            anyhow!(
+                "config profile `{name}` was not found in {}",
+                codex_home.join(CONFIG_FILE).display()
+            )
+        })?),
+        None => None,
+    };
+
+    Ok(EffectiveCodexConfig {
+        model: active_profile
+            .and_then(|profile| profile.model.clone())
+            .or(config.model),
+        model_provider: active_profile
+            .and_then(|profile| profile.model_provider.clone())
+            .or(config.model_provider),
+        chatgpt_base_url: active_profile
+            .and_then(|profile| profile.chatgpt_base_url.clone())
+            .or(config.chatgpt_base_url),
+    })
 }
 
 fn resolve_persistent_auth_store_mode(
@@ -905,7 +1081,9 @@ mod tests {
         )
         .expect("write config");
 
-        let provider = read_provider_request_config(dir.path())
+        let effective =
+            read_effective_codex_config(dir.path(), None).expect("read effective config");
+        let provider = read_provider_request_config(dir.path(), &effective)
             .expect("read provider config")
             .expect("provider config");
         assert_eq!(provider.base_url.as_str(), "https://api.example.invalid/v1");
@@ -922,6 +1100,70 @@ mod tests {
             provider
                 .query_params
                 .contains(&("api-version".to_string(), "2026-01-01".to_string()))
+        );
+    }
+
+    #[test]
+    fn config_profile_overrides_model_and_provider() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        fs::write(
+            dir.path().join(CONFIG_FILE),
+            r#"
+            model_provider = "custom_gateway"
+            model = "gpt-5.5"
+
+            [model_providers.custom_gateway]
+            base_url = "https://api.example.invalid/v1"
+            experimental_bearer_token = "dummy-provider-token-123456"
+
+            [profiles.openai]
+            model_provider = "openai"
+            model = "gpt-5.4"
+        "#,
+        )
+        .expect("write config");
+
+        let model = resolve_effective_model(dir.path(), Some("openai"), None)
+            .expect("resolve effective model");
+        let effective =
+            read_effective_codex_config(dir.path(), Some("openai")).expect("read effective config");
+        let provider =
+            read_provider_request_config(dir.path(), &effective).expect("read provider config");
+
+        assert_eq!(model, "gpt-5.4");
+        assert!(provider.is_none());
+    }
+
+    #[test]
+    fn config_profile_selects_custom_provider() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        fs::write(
+            dir.path().join(CONFIG_FILE),
+            r#"
+            model_provider = "openai"
+            model = "gpt-5.5"
+
+            [model_providers.custom_gateway]
+            base_url = "https://api.example.invalid/v1"
+            experimental_bearer_token = "dummy-provider-token-123456"
+
+            [profiles.custom_gateway]
+            model_provider = "custom_gateway"
+            model = "gpt-5.5"
+        "#,
+        )
+        .expect("write config");
+
+        let effective = read_effective_codex_config(dir.path(), Some("custom_gateway"))
+            .expect("read effective config");
+        let provider = read_provider_request_config(dir.path(), &effective)
+            .expect("read provider config")
+            .expect("provider config");
+
+        assert_eq!(provider.base_url, "https://api.example.invalid/v1");
+        assert_eq!(
+            provider.token.as_deref(),
+            Some("dummy-provider-token-123456")
         );
     }
 
@@ -945,7 +1187,7 @@ mod tests {
         )
         .expect("write auth");
 
-        let store = AuthStore::load(dir.path(), AuthStoreMode::File, AuthSource::Codex)
+        let store = AuthStore::load(dir.path(), AuthStoreMode::File, AuthSource::Codex, None)
             .expect("load auth store");
 
         assert_eq!(store.default_base_url(), "https://api.example.invalid/v1");

@@ -21,18 +21,25 @@ async fn main() -> Result<()> {
 
 async fn run(cli: Cli) -> Result<()> {
     let prompt = cli.prompt_text().context("failed to read prompt")?;
-    let mut request = ImageRequest::from_cli(&cli, prompt)?;
+    let codex_home = auth::resolve_codex_home(cli.codex_home.as_deref())?;
+    let model =
+        auth::resolve_effective_model(&codex_home, cli.profile.as_deref(), cli.model.as_deref())?;
+    let mut request = ImageRequest::from_cli(&cli, prompt, model)?;
 
     if cli.dry_run {
         print_dry_run(&request)?;
         return Ok(());
     }
 
-    let codex_home = auth::resolve_codex_home(cli.codex_home.as_deref())?;
     let installation_id = auth::resolve_installation_id(&codex_home)?;
     request.set_codex_identity(installation_id);
 
-    let mut auth_store = auth::AuthStore::load(&codex_home, cli.auth_store, cli.auth_source)?;
+    let mut auth_store = auth::AuthStore::load(
+        &codex_home,
+        cli.auth_store,
+        cli.auth_source,
+        cli.profile.as_deref(),
+    )?;
     let base_url = cli
         .base_url
         .clone()
@@ -42,19 +49,39 @@ async fn run(cli: Cli) -> Result<()> {
         .user_agent(client::USER_AGENT)
         .build()
         .context("failed to build HTTP client")?;
+    let proactive_refresh_error = if auth_store.is_stale_chatgpt_auth() && auth_store.can_refresh()
+    {
+        auth_store.refresh_chatgpt_token(&http_client).await.err()
+    } else {
+        None
+    };
 
-    let response_value =
-        match client::create_response(&http_client, &base_url, &auth_store, &request).await {
-            Ok(value) => value,
-            Err(client::ApiError::Unauthorized { body }) if auth_store.can_refresh() => {
-                auth_store
+    let response_value = match client::create_response(
+        &http_client,
+        &base_url,
+        &auth_store,
+        &request,
+    )
+    .await
+    {
+        Ok(value) => value,
+        Err(client::ApiError::Unauthorized { body }) if auth_store.can_refresh() => {
+            auth_store
                     .refresh_chatgpt_token(&http_client)
                     .await
-                    .with_context(|| format!("token refresh failed: {body}"))?;
-                client::create_response(&http_client, &base_url, &auth_store, &request).await?
-            }
-            Err(err) => return Err(err.into()),
-        };
+                    .with_context(|| {
+                        if let Some(err) = proactive_refresh_error.as_ref() {
+                            format!(
+                                "token refresh failed after unauthorized response: {body}; proactive refresh had already failed: {err}"
+                            )
+                        } else {
+                            format!("token refresh failed after unauthorized response: {body}")
+                        }
+                    })?;
+            client::create_response(&http_client, &base_url, &auth_store, &request).await?
+        }
+        Err(err) => return Err(err.into()),
+    };
 
     let image = response::extract_first_image(&response_value)?;
     let output_path = output::resolve_output_path(cli.output.as_deref(), request.output_format())?;

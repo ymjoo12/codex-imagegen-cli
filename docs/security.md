@@ -10,6 +10,8 @@ This repository must never contain real Codex credentials.
   store.
 - The CLI can read provider bearer auth from Codex config, provider `env_key`,
   or provider command-backed `auth`, matching Codex provider auth precedence.
+- The CLI reads profile `model` and `model_provider` settings from Codex config
+  but does not persist those values outside normal docs or test fixtures.
 - Provider `http_headers`, `env_http_headers`, and `query_params` are read at
   runtime and are not written to repository files.
 - It does not copy `auth.json` into the project.

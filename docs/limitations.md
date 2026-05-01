@@ -21,6 +21,15 @@ That backend is not documented as a public stable API. If Codex changes headers,
 request compression, auth requirements, or endpoint paths, this CLI may need an
 update.
 
+## Provider Gateways
+
+Custom OpenAI-compatible gateways may accept the Responses request but return no
+`image_generation_call`. In that case the transport and auth path succeeded, but
+the selected gateway did not return a hosted image tool result. Use `--profile`
+to select the same Codex profile you use interactively, and use
+`--auth-source managed --profile openai` when you specifically need the ChatGPT
+Codex backend.
+
 ## Agent Identity
 
 Codex can use `agentIdentity` auth in internal hosted contexts. That flow signs

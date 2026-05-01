@@ -6,9 +6,9 @@ hosted-tool path without depending on Codex's internal Rust workspace.
 ## Modules
 
 - `args`: CLI shape, prompt source selection, output format enum.
-- `auth`: Resolves Codex model-provider auth and credential stores, applies
-  bearer headers, refreshes ChatGPT OAuth tokens, and persists refreshed auth
-  JSON.
+- `auth`: Resolves Codex profile overrides, model-provider auth, and credential
+  stores, applies bearer headers, refreshes ChatGPT OAuth tokens, and persists
+  refreshed auth JSON.
 - `client`: Builds the Responses request body and sends `POST /responses`.
 - `response`: Extracts `image_generation_call.result` from JSON or SSE output.
 - `output`: Decodes base64 and writes the image file.
@@ -18,17 +18,22 @@ hosted-tool path without depending on Codex's internal Rust workspace.
 
 1. Parse CLI args and resolve prompt text from `--prompt`, `--prompt-file`, or
    the positional prompt.
-2. Build a Responses request with the `image_generation` hosted tool and
+2. Resolve `$CODEX_HOME/config.toml` profile settings. CLI `--model` overrides
+   the selected profile model, matching Codex's `-m` behavior.
+3. Build a Responses request with the `image_generation` hosted tool and
    Codex-compatible `tool_choice: "auto"` by default.
-3. Resolve Codex auth from `--codex-home`, `$CODEX_HOME`, or `~/.codex`.
-4. Read Codex model-provider routing and bearer auth first, then the same
+4. Resolve Codex auth from `--codex-home`, `$CODEX_HOME`, or `~/.codex`.
+5. Read Codex model-provider routing and bearer auth first, then the same
    credential store mode Codex uses. `--auth-source managed` skips
    model-provider auth, and `--auth-store` overrides the managed store mode.
-5. Send the request to `{base_url}/responses` with bearer auth and Codex
+6. Before the request, perform Codex-style guarded reload plus refresh when the
+   managed ChatGPT access token is already stale.
+7. Send the request to `{base_url}/responses` with bearer auth and Codex
    identity metadata.
-6. If managed ChatGPT/Codex auth receives `401`, refresh tokens and retry once.
-7. Decode the first `image_generation_call.result` base64 payload.
-8. Save the image to `--output` or `./generated/image-<timestamp>.<ext>`.
+8. If managed ChatGPT/Codex auth receives `401`, perform guarded reload plus
+   refresh and retry once.
+9. Decode the first `image_generation_call.result` base64 payload.
+10. Save the image to `--output` or `./generated/image-<timestamp>.<ext>`.
 
 ## Compatibility Notes
 
@@ -51,6 +56,17 @@ configured provider supplies `experimental_bearer_token`, `env_key`, or
 command-backed `auth`. This CLI uses the configured provider `base_url`,
 `http_headers`, `env_http_headers`, and `query_params` even when the actual
 bearer comes from managed ChatGPT/API-key auth.
+
+Codex profile selection is applied before provider routing. The profile
+resolution order is CLI `--profile`, then top-level `profile`; within that
+profile, `model` and `model_provider` override the top-level values. CLI
+`--model` overrides both profile and top-level `model`.
+
+Codex's `AuthManager::auth()` proactively refreshes stale managed ChatGPT auth.
+This CLI mirrors the same safety shape: it reloads the selected credential store
+and compares the account plus token snapshot before calling the OAuth refresh
+endpoint. That avoids consuming an old refresh token after another Codex process
+already persisted newer credentials.
 
 Codex's public Rust source serializes Responses requests with
 `tool_choice: "auto"` and a `prompt_cache_key` equal to the conversation id.

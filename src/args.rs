@@ -19,7 +19,7 @@ use clap::ValueEnum;
         .args(["prompt", "prompt_file", "prompt_arg"])
 ))]
 pub struct Cli {
-    #[arg(short, long, value_name = "TEXT")]
+    #[arg(long, value_name = "TEXT")]
     pub prompt: Option<String>,
 
     #[arg(long, value_name = "PATH")]
@@ -31,8 +31,11 @@ pub struct Cli {
     #[arg(short, long, value_name = "PATH")]
     pub output: Option<PathBuf>,
 
-    #[arg(long, default_value = "gpt-5.5")]
-    pub model: String,
+    #[arg(long, short = 'm')]
+    pub model: Option<String>,
+
+    #[arg(long = "profile", short = 'p', value_name = "CONFIG_PROFILE")]
+    pub profile: Option<String>,
 
     #[arg(long, value_name = "MODEL")]
     pub image_model: Option<String>,

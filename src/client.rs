@@ -32,7 +32,7 @@ pub struct ImageRequest {
 }
 
 impl ImageRequest {
-    pub fn from_cli(cli: &Cli, prompt: String) -> Result<Self> {
+    pub fn from_cli(cli: &Cli, prompt: String, model: String) -> Result<Self> {
         let mut tool = Map::new();
         tool.insert(
             "type".to_string(),
@@ -64,7 +64,7 @@ impl ImageRequest {
         }
 
         Ok(Self {
-            model: cli.model.clone(),
+            model,
             prompt,
             tool,
             tool_choice: cli.tool_choice,
@@ -211,7 +211,7 @@ mod tests {
             prompt_file: None,
             prompt_arg: None,
             output: None,
-            model: "gpt-5.5".to_string(),
+            model: Some("gpt-5.5".to_string()),
             image_model: Some("gpt-image-2".to_string()),
             format: OutputFormat::Png,
             size: Some("1024x1024".to_string()),
@@ -221,6 +221,7 @@ mod tests {
             action: Some("generate".to_string()),
             tool_params: vec!["moderation=\"low\"".to_string()],
             tool_choice: ToolChoice::ImageGeneration,
+            profile: None,
             codex_home: None,
             auth_store: crate::args::AuthStoreMode::Codex,
             auth_source: crate::args::AuthSource::Codex,
@@ -234,7 +235,12 @@ mod tests {
 
     #[test]
     fn request_body_forces_image_generation_tool() {
-        let request = ImageRequest::from_cli(&cli(), "draw a test image".to_string()).unwrap();
+        let request = ImageRequest::from_cli(
+            &cli(),
+            "draw a test image".to_string(),
+            "gpt-5.5".to_string(),
+        )
+        .unwrap();
         let body = request.to_body();
 
         assert_eq!(body["model"], "gpt-5.5");
@@ -252,7 +258,9 @@ mod tests {
         let mut cli = cli();
         cli.tool_choice = ToolChoice::Auto;
 
-        let request = ImageRequest::from_cli(&cli, "draw a test image".to_string()).unwrap();
+        let request =
+            ImageRequest::from_cli(&cli, "draw a test image".to_string(), "gpt-5.5".to_string())
+                .unwrap();
         let body = request.to_body();
 
         assert_eq!(body["tool_choice"], "auto");
