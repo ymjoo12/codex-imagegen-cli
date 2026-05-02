@@ -1,8 +1,8 @@
 # codex-imagegen-cli
 
-Rust CLI for generating one image through the Codex Responses `image_generation`
-hosted tool, using the same local Codex credential stores that the Codex CLI
-uses.
+Rust CLI for generating or editing one image through the Codex Responses
+`image_generation` hosted tool, using the same local Codex credential stores
+that the Codex CLI uses.
 
 This tool does not copy or store credentials in the repository. It resolves
 `$CODEX_HOME`, or `~/.codex` when `CODEX_HOME` is unset, then reads the
@@ -108,6 +108,30 @@ codex-imagegen \
   --action generate
 ```
 
+Edit a local image:
+
+```bash
+codex-imagegen \
+  --input-image ./input/photo.png \
+  --action edit \
+  --prompt "Change the background to a rainy night street. Preserve the main subject." \
+  --output ./generated/photo-edited.png
+```
+
+Use `--input-image` more than once to provide multiple edit/reference images:
+
+```bash
+codex-imagegen \
+  --input-image ./input/subject.png \
+  --input-image ./input/style-reference.webp \
+  --action edit \
+  --prompt "Apply the reference image's lighting and color treatment to the subject image." \
+  --output ./generated/subject-restyled.png
+```
+
+Local image inputs are sent as base64 data URLs in the Responses request.
+Supported file extensions are `.png`, `.jpg`, `.jpeg`, and `.webp`.
+
 Codex-compatible request shape is the default: `tool_choice` remains `auto`.
 For reliable live generation, phrase the prompt so the selected model calls the
 `image_generation` tool:
@@ -150,6 +174,9 @@ Inspect the request body without using credentials or making a network request:
 ```bash
 codex-imagegen --prompt "Draw a test image" --dry-run
 ```
+
+For local image inputs, `--dry-run` redacts the base64 payload so the preview is
+readable and does not print the image bytes.
 
 Print machine-readable output:
 
@@ -248,7 +275,7 @@ The CLI sends a Responses request shaped like this:
 ```json
 {
   "model": "gpt-5.5",
-  "instructions": "You are Codex. Generate images by using the provided image_generation tool.",
+  "instructions": "You are Codex. Generate or edit images by using the provided image_generation tool.",
   "input": [
     {
       "type": "message",
@@ -257,6 +284,10 @@ The CLI sends a Responses request shaped like this:
         {
           "type": "input_text",
           "text": "Draw a small robot"
+        },
+        {
+          "type": "input_image",
+          "image_url": "data:image/png;base64,<base64>"
         }
       ]
     }
@@ -274,6 +305,10 @@ The CLI sends a Responses request shaped like this:
   "include": []
 }
 ```
+
+The `input_image` item appears only when `--input-image` is provided. To force
+editing an input image, pass `--action edit`; otherwise the hosted tool's
+default action remains `auto`.
 
 The image bytes come from `output[].type == "image_generation_call"` and that
 item's base64 `result` field.

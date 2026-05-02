@@ -1,9 +1,9 @@
 [package]
 name = "codex-imagegen-cli"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
-description = "Generate images through the Codex Responses image_generation hosted tool using local Codex credentials."
+description = "Generate or edit images through the Codex Responses image_generation hosted tool using local Codex credentials."
 
 [[bin]]
 name = "codex-imagegen"

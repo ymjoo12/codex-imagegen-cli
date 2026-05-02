@@ -11,7 +11,7 @@ use clap::ValueEnum;
 #[command(name = "codex-imagegen")]
 #[command(
     version,
-    about = "Generate one image through Codex hosted image_generation."
+    about = "Generate or edit one image through Codex hosted image_generation."
 )]
 #[command(group(
     ArgGroup::new("prompt_source")
@@ -30,6 +30,14 @@ pub struct Cli {
 
     #[arg(short, long, value_name = "PATH")]
     pub output: Option<PathBuf>,
+
+    #[arg(
+        long = "input-image",
+        visible_alias = "image",
+        value_name = "PATH",
+        help = "Attach a local .png, .jpg, .jpeg, or .webp image for editing or reference"
+    )]
+    pub input_images: Vec<PathBuf>,
 
     #[arg(long, short = 'm')]
     pub model: Option<String>,

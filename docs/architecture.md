@@ -5,7 +5,8 @@ hosted-tool path without depending on Codex's internal Rust workspace.
 
 ## Modules
 
-- `args`: CLI shape, prompt source selection, output format enum.
+- `args`: CLI shape, prompt source selection, local image input paths, output
+  format enum.
 - `auth`: Resolves Codex profile overrides, model-provider auth, and credential
   stores, applies bearer headers, refreshes ChatGPT OAuth tokens, and persists
   refreshed auth JSON.
@@ -23,18 +24,20 @@ hosted-tool path without depending on Codex's internal Rust workspace.
 3. Build a Responses request with the `image_generation` hosted tool and
    Codex-compatible `tool_choice: "auto"` by default. The request always
    includes non-empty `instructions`, matching the Codex backend requirement.
-4. Resolve Codex auth from `--codex-home`, `$CODEX_HOME`, or `~/.codex`.
-5. Read Codex model-provider routing and bearer auth first, then the same
+4. If `--input-image` is present, read each local image, encode it as a base64
+   data URL, and append an `input_image` content item next to the prompt text.
+5. Resolve Codex auth from `--codex-home`, `$CODEX_HOME`, or `~/.codex`.
+6. Read Codex model-provider routing and bearer auth first, then the same
    credential store mode Codex uses. `--auth-source managed` skips
    model-provider auth, and `--auth-store` overrides the managed store mode.
-6. Before the request, perform Codex-style guarded reload plus refresh when the
+7. Before the request, perform Codex-style guarded reload plus refresh when the
    managed ChatGPT access token is already stale.
-7. Send the request to `{base_url}/responses` with bearer auth and Codex
+8. Send the request to `{base_url}/responses` with bearer auth and Codex
    identity metadata.
-8. If managed ChatGPT/Codex auth receives `401`, perform guarded reload plus
+9. If managed ChatGPT/Codex auth receives `401`, perform guarded reload plus
    refresh and retry once.
-9. Decode the first `image_generation_call.result` base64 payload.
-10. Save the image to `--output` or `./generated/image-<timestamp>.<ext>`.
+10. Decode the first `image_generation_call.result` base64 payload.
+11. Save the image to `--output` or `./generated/image-<timestamp>.<ext>`.
 
 ## Compatibility Notes
 
@@ -81,6 +84,15 @@ The official Responses API also supports forcing the hosted image tool with:
 ```
 
 This CLI exposes that non-default mode with `--tool-choice image-generation`.
+
+The official Responses API accepts images in message content as `input_image`
+items with a URL, a base64 data URL, or a Files API file id. This CLI uses
+base64 data URLs for local `--input-image` files so it does not need a separate
+upload step.
+
+The official Responses `image_generation` tool supports an `action` parameter.
+This CLI passes `--action edit` through unchanged, which forces editing when an
+input image is in the request context.
 
 The tool result is returned as base64 in:
 

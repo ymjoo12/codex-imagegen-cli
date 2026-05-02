@@ -17,6 +17,10 @@ This repository must never contain real Codex credentials.
 - It does not copy `auth.json` into the project.
 - It does not print keyring contents, access tokens, refresh tokens, API keys,
   provider bearer tokens, or full auth JSON.
+- `--input-image` reads local image bytes only for the current request and does
+  not write those bytes to repository files.
+- `--dry-run` redacts local image data URLs instead of printing full base64
+  image payloads.
 - Known token values are redacted from HTTP error bodies before display.
 - Token refresh writes back only to the selected Codex credential store mode.
 

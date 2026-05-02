@@ -10,6 +10,20 @@ is available with `--tool-choice image-generation`, but it still cannot prove
 that the backend performs no model-side orchestration and may not be supported
 by every profile.
 
+## Local Image Inputs
+
+`--input-image` embeds each local file as an `input_image` content item using a
+base64 data URL. The supported extensions are `.png`, `.jpg`, `.jpeg`, and
+`.webp`.
+
+Image inputs count as tokens in Responses requests and are billed accordingly.
+The CLI redacts these data URLs from `--dry-run` output, but live requests still
+send the image bytes to the selected Responses backend.
+
+For editing, pass `--action edit`. If `edit` is forced without a valid image in
+request context, the Responses image tool returns an error. If `--action` is
+omitted, the hosted tool keeps its default `auto` behavior.
+
 ## Codex Backend Stability
 
 The ChatGPT/Codex backend URL is based on observed Codex CLI behavior:

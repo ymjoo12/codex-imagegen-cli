@@ -21,6 +21,9 @@ jobs:
           cat > release-notes.md <<'EOF'
           Prebuilt binaries are attached for macOS, Linux, and Windows.
 
+          This release supports both text-to-image generation and local image
+          editing/reference inputs with `--input-image`.
+
           Install without Cargo:
 
           1. Download the archive for your platform from this release.

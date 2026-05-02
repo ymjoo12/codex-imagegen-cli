@@ -111,7 +111,7 @@ async fn run(cli: Cli) -> Result<()> {
 }
 
 fn print_dry_run(request: &ImageRequest) -> Result<()> {
-    let body = request.to_body();
+    let body = request.to_redacted_body();
     let preview = serde_json::json!({
         "method": "POST",
         "path": "/responses",
