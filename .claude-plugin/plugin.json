@@ -1,0 +1,19 @@
+{
+  "name": "gpt-imagegen",
+  "version": "0.1.0",
+  "description": "Generate or edit images in Claude Code through OpenAI's hosted image_generation tool, using the codex-imagegen CLI and the user's local Codex credentials.",
+  "author": {
+    "name": "ymjoo12",
+    "url": "https://github.com/ymjoo12"
+  },
+  "homepage": "https://github.com/ymjoo12/codex-imagegen-cli",
+  "repository": "https://github.com/ymjoo12/codex-imagegen-cli",
+  "license": "MIT",
+  "keywords": [
+    "image-generation",
+    "image-editing",
+    "openai",
+    "codex",
+    "gpt-image"
+  ]
+}

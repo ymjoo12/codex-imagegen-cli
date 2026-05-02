@@ -8,6 +8,35 @@ This tool does not copy or store credentials in the repository. It resolves
 `$CODEX_HOME`, or `~/.codex` when `CODEX_HOME` is unset, then reads the
 configured Codex credential store.
 
+## Use From Claude Code (gpt-imagegen Skill)
+
+The repo bundles a Claude Code skill named `gpt-imagegen` (`skills/gpt-imagegen/`)
+and a plugin manifest under `.claude-plugin/`. Once installed, asking Claude
+Code things like "draw a cat in Joseon-era ink style and save it to my
+Downloads folder" or "edit this image: replace the background with a sunlit
+kitchen counter" routes through the bundled wrapper, which calls
+`codex-imagegen` with sane defaults (PNG output, JSON response, no
+implicit profile/model overrides) and reports the absolute output path.
+
+Install as a Claude Code plugin (recommended):
+
+```text
+/plugin marketplace add ymjoo12/codex-imagegen-cli
+/plugin install gpt-imagegen@codex-imagegen-cli
+```
+
+Or copy the skill manually:
+
+```bash
+mkdir -p "$HOME/.claude/skills"
+cp -r skills/gpt-imagegen "$HOME/.claude/skills/"
+```
+
+The skill runs the bundled `scripts/imagegen.sh`, which auto-resolves the
+binary in this order: `$CODEX_IMAGEGEN_BIN` → `codex-imagegen` on PATH →
+`npx codex-imagegen-cli` → `bunx codex-imagegen-cli`. If none are
+available it exits with installation guidance.
+
 ## Run With npx or bunx
 
 Use this path when you do not want to visit the GitHub release page manually.

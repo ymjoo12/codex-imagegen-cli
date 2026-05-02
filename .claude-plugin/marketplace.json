@@ -1,0 +1,22 @@
+{
+  "name": "codex-imagegen-cli",
+  "description": "Marketplace for the gpt-imagegen Claude Code skill, which wraps the codex-imagegen Rust CLI for OpenAI image generation and editing.",
+  "owner": {
+    "name": "ymjoo12",
+    "url": "https://github.com/ymjoo12"
+  },
+  "plugins": [
+    {
+      "name": "gpt-imagegen",
+      "description": "Generate or edit images in Claude Code through OpenAI's hosted image_generation tool, using the user's local Codex credentials.",
+      "version": "0.1.0",
+      "source": "./",
+      "author": {
+        "name": "ymjoo12",
+        "url": "https://github.com/ymjoo12"
+      },
+      "homepage": "https://github.com/ymjoo12/codex-imagegen-cli",
+      "license": "MIT"
+    }
+  ]
+}
