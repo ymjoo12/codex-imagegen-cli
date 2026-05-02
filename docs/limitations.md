@@ -36,6 +36,16 @@ That backend is not documented as a public stable API. If Codex changes headers,
 request compression, auth requirements, or endpoint paths, this CLI may need an
 update.
 
+## npm Wrapper
+
+`npx codex-imagegen-cli` and `bunx codex-imagegen-cli` still need network access
+on first run unless `CODEX_IMAGEGEN_BIN` points to an existing binary or the
+matching binary is already in the wrapper cache.
+
+The npm wrapper currently supports macOS arm64, macOS x64, Linux x64, and
+Windows x64 because those are the release assets produced by this repository.
+Other platforms must build from source or add a matching release target first.
+
 ## Provider Gateways
 
 Custom OpenAI-compatible gateways may accept the Responses request but return no

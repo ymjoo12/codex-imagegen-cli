@@ -23,6 +23,8 @@ This repository must never contain real Codex credentials.
   image payloads.
 - Known token values are redacted from HTTP error bodies before display.
 - Token refresh writes back only to the selected Codex credential store mode.
+- The npm wrapper verifies downloaded release archives with the adjacent
+  `.sha256` file before installing the cached binary.
 
 ## Git Hygiene
 
@@ -52,6 +54,10 @@ PRIVATE_TERMS='private-profile|local-user|internal-host' git grep -n -E "$PRIVAT
 
 Use neutral fixture names such as `custom_gateway`, `corp`, or `example` in
 tests and documentation.
+
+The npm wrapper stores downloaded binaries in the user cache directory, not in
+the repository. Set `CODEX_IMAGEGEN_CACHE_DIR` only to a directory where cached
+executables are acceptable.
 
 ## Network Scope
 

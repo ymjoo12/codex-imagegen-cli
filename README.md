@@ -8,6 +8,28 @@ This tool does not copy or store credentials in the repository. It resolves
 `$CODEX_HOME`, or `~/.codex` when `CODEX_HOME` is unset, then reads the
 configured Codex credential store.
 
+## Run With npx or bunx
+
+Use this path when you do not want to visit the GitHub release page manually.
+The npm package downloads the matching prebuilt binary on first run, verifies
+its `.sha256` checksum, caches it locally, and then forwards all arguments to
+the Rust CLI.
+
+```bash
+npx codex-imagegen-cli \
+  --prompt "Draw a cat in a spacesuit standing on the moon. No text." \
+  --output ./generated/moon-cat.png
+```
+
+```bash
+bunx codex-imagegen-cli \
+  --prompt "Draw a cat in a spacesuit standing on the moon. No text." \
+  --output ./generated/moon-cat.png
+```
+
+After installation, the package exposes both `codex-imagegen-cli` and
+`codex-imagegen` binaries.
+
 ## Install From Releases
 
 Download a prebuilt binary from the latest GitHub release. Cargo is not
@@ -69,6 +91,21 @@ shasum -a 256 -c codex-imagegen-aarch64-apple-darwin.tar.gz.sha256
 ```
 
 Make sure `$HOME/.local/bin` or the chosen install directory is in `PATH`.
+
+## Install From npm
+
+Use npm, pnpm, or Bun when you want a persistent command without manually
+downloading an archive:
+
+```bash
+npm install -g codex-imagegen-cli
+codex-imagegen --help
+```
+
+```bash
+bun install -g codex-imagegen-cli
+codex-imagegen --help
+```
 
 ## Build From Source
 

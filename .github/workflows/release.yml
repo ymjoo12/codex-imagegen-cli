@@ -21,6 +21,13 @@ jobs:
           cat > release-notes.md <<'EOF'
           Prebuilt binaries are attached for macOS, Linux, and Windows.
 
+          This release can also be run through npm package managers:
+
+          ```bash
+          npx codex-imagegen-cli --help
+          bunx codex-imagegen-cli --help
+          ```
+
           This release supports both text-to-image generation and local image
           editing/reference inputs with `--input-image`.
 
@@ -107,3 +114,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+
+  publish-npm:
+    name: Publish npm package
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - name: Check npm token
+        id: npm-token
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "$NPM_TOKEN" ]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "NPM_TOKEN is not configured; skipping npm publish."
+          fi
+      - name: Validate npm package
+        run: npm run test:npm
+      - name: Publish to npm
+        if: steps.npm-token.outputs.available == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public --provenance

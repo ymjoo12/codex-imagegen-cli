@@ -14,6 +14,9 @@ hosted-tool path without depending on Codex's internal Rust workspace.
 - `response`: Extracts `image_generation_call.result` from JSON or SSE output.
 - `output`: Decodes base64 and writes the image file.
 - `security`: Redacts known token values from error text.
+- `npm/`: Node-based `npx`/`bunx` wrapper. It resolves the current platform,
+  downloads the matching GitHub Release archive, verifies the release checksum,
+  caches the Rust binary, and forwards arguments to it.
 
 ## Data Flow
 
@@ -104,3 +107,22 @@ Codex streams Responses requests. This CLI sends `stream: true` by default,
 parses `response.completed` and `response.output_item.done` SSE events, and
 preserves image items that arrive before a completed response with an empty
 `output` array.
+
+## npm Wrapper
+
+The npm package does not reimplement image generation. It uses the package
+version to select release tag `v<version>`, downloads the matching prebuilt
+archive from GitHub Releases, verifies the adjacent `.sha256` file, and stores
+the binary in the user's cache directory.
+
+The wrapper supports these release targets:
+
+- `aarch64-apple-darwin`
+- `x86_64-apple-darwin`
+- `x86_64-unknown-linux-gnu`
+- `x86_64-pc-windows-msvc`
+
+`CODEX_IMAGEGEN_CACHE_DIR` overrides the cache directory, `CODEX_IMAGEGEN_BIN`
+uses an already-installed binary, and `CODEX_IMAGEGEN_RELEASE_TAG` or
+`CODEX_IMAGEGEN_RELEASE_BASE_URL` can point the wrapper at another release
+source for testing.

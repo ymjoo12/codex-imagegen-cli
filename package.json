@@ -1,0 +1,39 @@
+{
+  "name": "codex-imagegen-cli",
+  "version": "0.3.0",
+  "description": "Run codex-imagegen from npx or bunx using local Codex credentials.",
+  "license": "MIT",
+  "bin": {
+    "codex-imagegen-cli": "npm/bin/codex-imagegen.js",
+    "codex-imagegen": "npm/bin/codex-imagegen.js"
+  },
+  "files": [
+    "npm/",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ymjoo12/codex-imagegen-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ymjoo12/codex-imagegen-cli/issues"
+  },
+  "homepage": "https://github.com/ymjoo12/codex-imagegen-cli#readme",
+  "keywords": [
+    "codex",
+    "image-generation",
+    "openai",
+    "responses-api",
+    "cli"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test:npm": "node npm/tests/platform.test.js"
+  }
+}
