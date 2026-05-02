@@ -25,6 +25,8 @@ This repository must never contain real Codex credentials.
 - Token refresh writes back only to the selected Codex credential store mode.
 - The npm wrapper verifies downloaded release archives with the adjacent
   `.sha256` file before installing the cached binary.
+- npm package publishing uses Trusted Publishing from GitHub Actions OIDC. Do
+  not store long-lived npm automation tokens in repository secrets.
 
 ## Git Hygiene
 

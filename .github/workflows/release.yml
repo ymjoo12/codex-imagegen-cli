@@ -130,21 +130,9 @@ jobs:
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
-      - name: Check npm token
-        id: npm-token
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          if [ -n "$NPM_TOKEN" ]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "NPM_TOKEN is not configured; skipping npm publish."
-          fi
+      - name: Ensure OIDC-capable npm
+        run: npm install -g npm@^11.10.0
       - name: Validate npm package
         run: npm run test:npm
       - name: Publish to npm
-        if: steps.npm-token.outputs.available == 'true'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public --provenance
+        run: npm publish --access public

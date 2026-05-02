@@ -136,6 +136,13 @@ bun install -g codex-imagegen-cli
 codex-imagegen --help
 ```
 
+## Maintainer Publishing
+
+npm publishing is configured for Trusted Publishing from GitHub Actions. Do not
+store a long-lived npm automation token in repository secrets. See
+[`docs/publishing.md`](docs/publishing.md) for first-publish and release
+requirements.
+
 ## Build From Source
 
 Use this path when you already have Rust and Cargo installed.
