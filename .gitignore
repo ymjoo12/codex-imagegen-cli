@@ -6,3 +6,7 @@
 /auth.json
 /*.log
 /.DS_Store
+
+# Local-only agent instructions: never publish to this public repo.
+AGENTS.md
+CLAUDE.md
